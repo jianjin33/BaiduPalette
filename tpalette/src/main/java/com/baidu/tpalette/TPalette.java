@@ -3,8 +3,16 @@ package com.baidu.tpalette;
 import android.app.Activity;
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentActivity;
+import android.support.v4.util.Preconditions;
+import android.view.View;
 
+import com.baidu.tpalette.lifecycle.PaletteManagerRetriever;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
@@ -20,54 +28,67 @@ public class TPalette {
     private static TPalette tPalette;
     private static volatile boolean isInitializing;
 
-    private Context context;
-    private int cacheSize;
-    private Executor executor;
+    private PaletteManagerRetriever paletteManagerRetriever;
+    private final List<PaletteManager> managers = new ArrayList<>();
 
 
-    private TPalette(Context context, int cacheSize, Executor executor) {
-        this.context = context;
-        this.cacheSize = cacheSize;
-        this.executor = executor;
+    private TPalette() {
     }
 
 
+    public static PaletteManager with(@NonNull Context context) {
+        return getRetriever(context).get(context);
+    }
+
+    @NonNull
+    public static PaletteManager with(@NonNull Activity activity) {
+        return getRetriever(activity).get(activity);
+    }
+
+    @NonNull
+    public static PaletteManager with(@NonNull FragmentActivity activity) {
+        return getRetriever(activity).get(activity);
+    }
+
+    @NonNull
+    public static PaletteManager with(@NonNull android.app.Fragment fragment) {
+        return getRetriever(fragment.getActivity()).get(fragment);
+    }
+
+
+    @NonNull
+    public static PaletteManager with(@NonNull Fragment fragment) {
+        return getRetriever(fragment.getActivity()).get(fragment);
+    }
+
     /**
-     * 获取TPalette单例对象
+     * Get the singleton.
+     *
+     * @return the singleton
      */
     @NonNull
-    public static TPalette withLife(@NonNull Object context) {
-        if (context instanceof Activity || context instanceof Fragment) {
-            if (tPalette == null) {
-                synchronized (TPalette.class) {
-                    if (tPalette == null) {
-                        checkAndInitializeGlide(context);
-                    }
+    public static TPalette get(@NonNull Context context) {
+        if (tPalette == null) {
+            synchronized (TPalette.class) {
+                if (tPalette == null) {
+                    checkAndInitialize(context);
                 }
             }
-        } else {
-            throw new IllegalArgumentException("argument must be activity or fragment");
         }
 
         return tPalette;
     }
 
-
-    private static void checkAndInitializeGlide(@NonNull Object context) {
+    private static void checkAndInitialize(@NonNull Object context) {
         if (isInitializing) {
             throw new IllegalStateException("is initializing, can't call TPalette.withLife()");
         }
-
         isInitializing = true;
         init(context);
         isInitializing = false;
     }
 
     private static void init(@NonNull Object context) {
-        init(context, new TPaletteBuilder());
-    }
-
-    private static void init(@NonNull Object context, @NonNull TPaletteBuilder builder) {
         Context applicationContext;
         if (context instanceof Activity) {
             applicationContext = ((Activity) context).getApplicationContext();
@@ -75,29 +96,37 @@ public class TPalette {
             applicationContext = ((Fragment) context).getActivity().getApplicationContext();
 
         }
-
-        TPalette tPalette = builder.build(applicationContext);
-
-        TPalette.tPalette = tPalette;
+         tPalette = new TPalette();
     }
 
-    private static class TPaletteBuilder {
-        private int cacheSize;
-        private Executor executor;
-
-        public TPaletteBuilder setCacheSize(int cacheSize) {
-            this.cacheSize = cacheSize;
-            return this;
+    @NonNull
+    private static PaletteManagerRetriever getRetriever(@Nullable Context context) {
+        if (context == null){
+            throw new NullPointerException("context is null");
         }
+        return TPalette.get(context).getRequestManagerRetriever();
+    }
 
-        public TPaletteBuilder setExecutor(Executor executor) {
-            this.executor = executor;
-            return this;
+    @NonNull
+    public PaletteManagerRetriever getRequestManagerRetriever() {
+        return paletteManagerRetriever;
+    }
+
+    void registerPaletteManager(PaletteManager paletteManager) {
+        synchronized (managers) {
+            if (managers.contains(paletteManager)) {
+                throw new IllegalStateException("Cannot register already registered manager");
+            }
+            managers.add(paletteManager);
         }
+    }
 
-        public TPalette build(Context context) {
-            return new TPalette(context, cacheSize, executor);
+    public void unregisterPaletteManager(PaletteManager paletteManager) {
+        synchronized (managers) {
+            if (!managers.contains(paletteManager)) {
+                throw new IllegalStateException("Cannot unregister not yet registered manager");
+            }
+            managers.remove(paletteManager);
         }
-
     }
 }
