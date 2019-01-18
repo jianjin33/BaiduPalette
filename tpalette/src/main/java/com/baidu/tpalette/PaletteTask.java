@@ -21,6 +21,7 @@ import java.util.concurrent.TimeoutException;
 
 import static android.content.ContentValues.TAG;
 import static com.baidu.tpalette.PaletteOptions.PALETTE_DEFAULT_RESIZE_BITMAP_AREA;
+import static java.lang.Thread.sleep;
 
 public class PaletteTask {
     private Context context;
@@ -37,7 +38,7 @@ public class PaletteTask {
     }
 
     public void start() {
-        palette(context, object, paletteCallback);
+        palette(context, object);
     }
 
     public void recycle() {
@@ -45,10 +46,16 @@ public class PaletteTask {
         target = null;
     }
 
-    private void palette(final Context context, final Object obj, final PaletteCallback paletteCallback) {
+    private void palette(final Context context, final Object obj) {
         new AsyncTask<Bitmap, Void, Palette>() {
             @Nullable
             protected Palette doInBackground(Bitmap... params) {
+
+                try {
+                    sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
 
                 final Integer color = ColorCache.hitPaletteCache(obj.toString());
                 if (color != null) {
@@ -99,6 +106,12 @@ public class PaletteTask {
                         .resizeBitmapArea(PALETTE_DEFAULT_RESIZE_BITMAP_AREA)
                         .maximumColorCount(32)
                         .clearTargets();
+
+                try {
+                    sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
 
                 try {
                     return builder.generate();
