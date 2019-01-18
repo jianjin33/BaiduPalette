@@ -92,7 +92,6 @@ public class PaletteManager implements LifecycleListener {
         //paletteTracker.runTask();
     }
 
-
     @NonNull
     @CheckResult
     public PaletteBuilder load(@Nullable String url) {
