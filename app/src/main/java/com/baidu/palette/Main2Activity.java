@@ -9,7 +9,6 @@ import com.baidu.tpalette.PaletteCallback;
 import com.baidu.tpalette.TPalette;
 
 public class Main2Activity extends AppCompatActivity {
-
     private View root;
 
     @Override
