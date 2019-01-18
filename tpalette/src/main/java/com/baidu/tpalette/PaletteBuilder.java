@@ -9,7 +9,7 @@ public class PaletteBuilder {
     private Object object;
     private Context context;
     private PaletteManager paletteManager;;
-    private PaletteTask.PaletteCallback callback;
+    private PaletteCallback callback;
 
     public PaletteBuilder(Context context,PaletteManager paletteManager) {
         this.context = context;
@@ -21,7 +21,7 @@ public class PaletteBuilder {
         return this;
     }
 
-    public PaletteBuilder addPaletteCallback(@Nullable PaletteTask.PaletteCallback callback) {
+    public PaletteBuilder addPaletteCallback(@Nullable PaletteCallback callback) {
         this.callback = callback;
         return this;
     }

@@ -4,13 +4,20 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.AsyncTask;
-import android.support.annotation.ColorInt;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.annotation.Nullable;
-import android.support.v4.util.LruCache;
 import android.support.v7.graphics.Palette;
 import android.util.Log;
 import android.view.View;
 
+
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.request.FutureTarget;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static android.content.ContentValues.TAG;
 import static com.baidu.tpalette.PaletteOptions.PALETTE_DEFAULT_RESIZE_BITMAP_AREA;
@@ -38,17 +45,44 @@ public class PaletteTask {
         target = null;
     }
 
-    private void palette(Context context, final Object obj, final PaletteCallback paletteCallback) {
+    private void palette(final Context context, final Object obj, final PaletteCallback paletteCallback) {
         new AsyncTask<Bitmap, Void, Palette>() {
             @Nullable
             protected Palette doInBackground(Bitmap... params) {
 
-                if (hitPaletteCache(obj.toString(), paletteCallback)) {
+                final Integer color = ColorCache.hitPaletteCache(obj.toString());
+                if (color != null) {
+                    // 字体颜色无需求，暂时返回白色
+                    //UiThreadHandler.post(() -> paletteCallback.setColor(color, Color.WHITE));
+                    if (target != null) {
+                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                            @Override
+                            public void run() {
+                                target.setBackgroundColor(color);
+                            }
+                        });
+
+                    }
+                    if (paletteCallback != null) {
+                        paletteCallback.setColor(color, Color.WHITE);
+                    }
                     return null;
                 }
 
+
                 Bitmap bitmap = null;
                 if (obj instanceof String) {
+                    FutureTarget<Bitmap> futureTarget = Glide.with(context).asBitmap().load(obj.toString()).submit();
+                    try {
+                        //超时时间10s
+                        bitmap = futureTarget.get(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } catch (ExecutionException e) {
+                        e.printStackTrace();
+                    } catch (TimeoutException e) {
+                        e.printStackTrace();
+                    }
                     //bitmap = ImageLoaderOption.getInstance().submit(context, obj.toString(), null);
                 } else if (obj instanceof Bitmap) {
                     bitmap = (Bitmap) obj;
@@ -74,43 +108,19 @@ public class PaletteTask {
                 }
             }
 
-            protected void onPostExecute(@Nullable Palette colorExtractor) {
+            protected void onPostExecute(@Nullable final Palette colorExtractor) {
                 if (colorExtractor != null) {
                     // todo 主线程
-                    asyncCallback(colorExtractor, paletteCallback, obj.toString());
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            asyncCallback(colorExtractor, paletteCallback, obj.toString());
+                        }
+                    });
+
                 }
             }
         }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
-    }
-
-
-    /**
-     * 设置一个最大可存储128个RGB色值的容器
-     * 注意：目前只缓存一个颜色值，后期如有需要可以缓存Palette的整个Swatch
-     */
-    private static LruCache<String, Integer> PALETTE_RGB_CACHE = new LruCache<>(128);
-
-    /**
-     * 从缓存中获取
-     *
-     * @param key
-     * @param paletteCallback
-     * @return
-     */
-    private boolean hitPaletteCache(String key, PaletteCallback paletteCallback) {
-        Integer color = PALETTE_RGB_CACHE.get(key);
-        if (color != null) {
-            // 字体颜色无需求，暂时返回白色
-            //UiThreadHandler.post(() -> paletteCallback.setColor(color, Color.WHITE));
-            if (target != null) {
-                target.setBackgroundColor(color);
-            }
-            if (paletteCallback != null) {
-                paletteCallback.setColor(color, Color.WHITE);
-            }
-            return true;
-        }
-        return false;
     }
 
 
@@ -156,7 +166,7 @@ public class PaletteTask {
             paletteCallback.setColor(alphaColor, dominantSwatch.getBodyTextColor());
         }
         if (cacheKey != null) {
-            PALETTE_RGB_CACHE.put(cacheKey, alphaColor);
+            ColorCache.putPaletteCache(cacheKey, alphaColor);
         }
     }
 
@@ -192,10 +202,5 @@ public class PaletteTask {
         // Color.rgb(alphaRed, alphaGreen, alphaBlue);
         // Color.rgb()由于只支持26以上版本
         return 0xff000000 | (alphaRed << 16) | (alphaGreen << 8) | alphaBlue;
-    }
-
-
-    public interface PaletteCallback {
-        void setColor(@ColorInt int color, @ColorInt int textColor);
     }
 }

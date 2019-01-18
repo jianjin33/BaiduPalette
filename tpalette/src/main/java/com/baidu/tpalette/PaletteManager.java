@@ -2,21 +2,16 @@ package com.baidu.tpalette;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.drawable.Drawable;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.CheckResult;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.view.View;
 
 import com.baidu.tpalette.lifecycle.Lifecycle;
 import com.baidu.tpalette.lifecycle.LifecycleListener;
 import com.baidu.tpalette.lifecycle.PaletteManagerTreeNode;
 import com.baidu.tpalette.lifecycle.PaletteTracker;
-import com.baidu.tpalette.lifecycle.TargetTracker;
-import com.baidu.tpalette.target.TargetView;
 
 public class PaletteManager implements LifecycleListener {
 
@@ -81,7 +76,7 @@ public class PaletteManager implements LifecycleListener {
 
     @Override
     public void onDestroy() {
-        paletteTracker.clearRequests();
+        paletteTracker.clearTasks();
         lifecycle.removeListener(this);
         mainHandler.removeCallbacks(addSelfToLifecycle);
         tPalette.unregisterPaletteManager(this);

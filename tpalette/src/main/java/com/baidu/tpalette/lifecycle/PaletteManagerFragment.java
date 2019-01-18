@@ -131,7 +131,7 @@ public class PaletteManagerFragment extends Fragment {
 
     private void registerFragmentWithRoot(@NonNull Activity activity) {
         unregisterFragmentWithRoot();
-        rootPaletteManagerFragment = TPalette.get(activity).getRequestManagerRetriever()
+        rootPaletteManagerFragment = TPalette.get(activity).getPaletteManagerRetriever()
                 .getRequestManagerFragment(activity.getFragmentManager(), null);
         if (!equals(rootPaletteManagerFragment)) {
             rootPaletteManagerFragment.addChildRequestManagerFragment(this);

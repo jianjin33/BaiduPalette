@@ -121,8 +121,8 @@ public class SupportPaletteManagerFragment extends Fragment {
 
   private void registerFragmentWithRoot(@NonNull FragmentActivity activity) {
     unregisterFragmentWithRoot();
-    rootRequestManagerFragment = TPalette.get(activity).getRequestManagerRetriever()
-        .getSupportRequestManagerFragment(activity.getSupportFragmentManager(), null);
+    rootRequestManagerFragment = TPalette.get(activity).getPaletteManagerRetriever()
+        .getSupportPaletteManagerFragment(activity.getSupportFragmentManager(), null);
     if (!equals(rootRequestManagerFragment)) {
       rootRequestManagerFragment.addChildRequestManagerFragment(this);
     }

@@ -20,7 +20,7 @@ import com.bumptech.glide.load.resource.bitmap.BitmapResource;
 
 import java.security.MessageDigest;
 
-public class AlbumTransformation implements Transformation<Bitmap> {
+public class AlbumTransformation {
     private static Paint sMaskingPaint = new Paint();
     private static Paint mPaint = new Paint();
     private static int LINE_WIDTH = 20;
@@ -56,7 +56,6 @@ public class AlbumTransformation implements Transformation<Bitmap> {
     }
 
     @NonNull
-    @Override
     public Resource<Bitmap> transform(@NonNull Context context, @NonNull Resource<Bitmap> resource, int outWidth, int outHeight) {
         Bitmap source = resource.get();
 
@@ -93,7 +92,6 @@ public class AlbumTransformation implements Transformation<Bitmap> {
         return BitmapResource.obtain(result, mBitmapPool);
     }
 
-    @Override
     public void updateDiskCacheKey(@NonNull MessageDigest messageDigest) {
         messageDigest.update(key().getBytes());
 

@@ -6,14 +6,13 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
-import android.support.v4.util.Preconditions;
-import android.view.View;
 
 import com.baidu.tpalette.lifecycle.PaletteManagerRetriever;
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.manager.RequestManagerRetriever;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executor;
 
 /**
  * @Description TPalette 取色框架的入口；TPalette取色是基于Google的取色框架Palette的一层封装，旨在使用起来
@@ -32,7 +31,8 @@ public class TPalette {
     private final List<PaletteManager> managers = new ArrayList<>();
 
 
-    private TPalette() {
+    private TPalette(PaletteManagerRetriever paletteManagerRetriever) {
+        this.paletteManagerRetriever = paletteManagerRetriever;
     }
 
 
@@ -94,9 +94,12 @@ public class TPalette {
             applicationContext = ((Activity) context).getApplicationContext();
         } else {
             applicationContext = ((Fragment) context).getActivity().getApplicationContext();
-
         }
-         tPalette = new TPalette();
+        PaletteManagerRetriever paletteManagerRetriever =
+                new PaletteManagerRetriever(null);
+
+
+         tPalette = new TPalette(paletteManagerRetriever);
     }
 
     @NonNull
@@ -104,11 +107,11 @@ public class TPalette {
         if (context == null){
             throw new NullPointerException("context is null");
         }
-        return TPalette.get(context).getRequestManagerRetriever();
+        return TPalette.get(context).getPaletteManagerRetriever();
     }
 
     @NonNull
-    public PaletteManagerRetriever getRequestManagerRetriever() {
+    public PaletteManagerRetriever getPaletteManagerRetriever() {
         return paletteManagerRetriever;
     }
 

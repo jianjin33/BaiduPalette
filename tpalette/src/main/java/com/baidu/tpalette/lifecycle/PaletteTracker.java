@@ -5,6 +5,7 @@ import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
 
 import com.baidu.tpalette.PaletteTask;
+import com.bumptech.glide.util.Util;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,9 +52,9 @@ public class PaletteTracker {
         return isOwnedByUs;
     }
 
-    public void clearRequests() {
-        for (PaletteTask task : tasks) {
-            clearRemoveAndMaybeRecycle(task, /*isSafeToRecycle=*/ false);
+    public void clearTasks() {
+        for (PaletteTask task : Util.getSnapshot(tasks)) {
+            clearRemoveAndMaybeRecycle(task,true);
         }
         pendingRequests.clear();
     }

@@ -85,10 +85,10 @@ public class PaletteManagerRetriever implements Handler.Callback {
         if (applicationManager == null) {
             synchronized (this) {
                 if (applicationManager == null) {
-                    TPalette glide = TPalette.get(context.getApplicationContext());
+                    TPalette tPalette = TPalette.get(context.getApplicationContext());
                     applicationManager =
                             factory.build(
-                                    glide,
+                                    tPalette,
                                     new ApplicationLifecycle(),
                                     new EmptyRequestManagerTreeNode(),
                                     context.getApplicationContext());
