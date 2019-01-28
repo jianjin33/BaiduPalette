@@ -24,12 +24,12 @@ allprojects {
         maven { url "https://jitpack.io" }
     }
 
-    gradle.projectsEvaluated {
+/*    gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
              options.encoding = 'UTF-8'
              options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
-    }
+    }*/
 }
 
 
