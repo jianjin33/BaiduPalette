@@ -29,4 +29,6 @@ dependencies {
     implementation 'com.github.bumptech.glide:glide:4.8.0'
     annotationProcessor 'com.github.bumptech.glide:compiler:4.8.0'
     implementation project(':tpalette')
+//    implementation 'com.github.jianjin33:BaiduPalette:0.0.2'
+
 }
