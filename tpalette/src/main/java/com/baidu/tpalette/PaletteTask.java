@@ -9,13 +9,6 @@ import android.support.v7.graphics.Palette;
 import android.util.Log;
 import android.view.View;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.request.FutureTarget;
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
 import static com.baidu.tpalette.PaletteOptions.PALETTE_DEFAULT_RESIZE_BITMAP_AREA;
 
 

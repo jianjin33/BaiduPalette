@@ -64,6 +64,7 @@ public class PaletteManager implements LifecycleListener {
     }
 
     @NonNull
+    @Deprecated
     public PaletteBuilder load(@Nullable String url) {
         return as().load(url);
     }

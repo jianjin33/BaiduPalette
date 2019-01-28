@@ -1,5 +1,7 @@
 package com.baidu.palette;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -19,11 +21,10 @@ public class Main2Activity extends AppCompatActivity {
     }
 
     public void start(View view) {
-        String url = "http://www.ppt123.net/beijing/UploadFiles_8374/201201/2012011411274518.jpg";
-        TPalette.with(this).load(url).addPaletteCallback(new PaletteCallback() {
+        Bitmap bitmap = BitmapFactory.decodeResource(getResources(),R.drawable.timg);
+        TPalette.with(this).load(bitmap).addPaletteCallback(new PaletteCallback() {
             @Override
             public void setColor(int color, int textColor) {
-                Log.d("test", "是否还会执行？");
             }
         }).into(root);
     }
