@@ -3,111 +3,93 @@ package com.baidu.tpalette;
 import android.app.Activity;
 import android.content.Context;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
+import android.util.Log;
+
 
 import com.baidu.tpalette.lifecycle.PaletteManagerRetriever;
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.manager.RequestManagerRetriever;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @Description TPalette 取色框架的入口；TPalette取色是基于Google的取色框架Palette的一层封装，旨在使用起来
- * 更加方便，可以自动管理异步的生命周期及其回调处理，同时能和一些图片加载框架结合使用，避免多次在内存中创建bitmap对象。
- * @Author JianZuming
- * @Date 18/12/11
- * @Version V1.0.0
- * @Update 更新说明
+ * @author JianZuming
+ * @description 取色功能的入口。单例对象。
+ * @date 2019/1/21
+ * 用法：1.TPalette.with(Context).load(url/bitmap).into(view);
+ * 2.TPalette.with(Context).load(url/bitmap).addPaletteCallback(PaletteCallback).into(view);
+ * 3.TPalette.with(Context).load(url/bitmap).addPaletteCallback(PaletteCallback).submit();
  */
 public class TPalette {
-
+    private static String TAG = TPalette.class.getSimpleName();
     private static TPalette tPalette;
-    private static volatile boolean isInitializing;
+    private static volatile boolean isInitializing; // 判断正在初始化
+
 
     private PaletteManagerRetriever paletteManagerRetriever;
     private final List<PaletteManager> managers = new ArrayList<>();
-
 
     private TPalette(PaletteManagerRetriever paletteManagerRetriever) {
         this.paletteManagerRetriever = paletteManagerRetriever;
     }
 
+    /**
+     * 内部管理取色任务的生命周期时，会获取该单例对象，一般外部无需使用该方法来
+     * @return
+     */
+    @NonNull
+    public static TPalette get() {
+        if (tPalette == null) {
+            synchronized (TPalette.class) {
+                if (tPalette == null) {
+                    checkAndInitialize();
+                }
+            }
+        }
+        return tPalette;
+    }
+
+    private static void checkAndInitialize() {
+        if (isInitializing) {
+            throw new IllegalStateException("is initializing, can't call TPalette.get()");
+        }
+        isInitializing = true;
+
+        PaletteManagerRetriever paletteManagerRetriever = new PaletteManagerRetriever(null);
+        tPalette = new TPalette(paletteManagerRetriever);
+
+        isInitializing = false;
+    }
 
     public static PaletteManager with(@NonNull Context context) {
-        return getRetriever(context).get(context);
+        return getRetriever().get(context);
     }
 
     @NonNull
     public static PaletteManager with(@NonNull Activity activity) {
-        return getRetriever(activity).get(activity);
+        return getRetriever().get(activity);
     }
 
     @NonNull
     public static PaletteManager with(@NonNull FragmentActivity activity) {
-        return getRetriever(activity).get(activity);
+        return getRetriever().get(activity);
     }
 
     @NonNull
     public static PaletteManager with(@NonNull android.app.Fragment fragment) {
-        return getRetriever(fragment.getActivity()).get(fragment);
+        return getRetriever().get(fragment);
     }
-
 
     @NonNull
     public static PaletteManager with(@NonNull Fragment fragment) {
-        return getRetriever(fragment.getActivity()).get(fragment);
-    }
-
-    /**
-     * Get the singleton.
-     *
-     * @return the singleton
-     */
-    @NonNull
-    public static TPalette get(@NonNull Context context) {
-        if (tPalette == null) {
-            synchronized (TPalette.class) {
-                if (tPalette == null) {
-                    checkAndInitialize(context);
-                }
-            }
-        }
-
-        return tPalette;
-    }
-
-    private static void checkAndInitialize(@NonNull Object context) {
-        if (isInitializing) {
-            throw new IllegalStateException("is initializing, can't call TPalette.withLife()");
-        }
-        isInitializing = true;
-        init(context);
-        isInitializing = false;
-    }
-
-    private static void init(@NonNull Object context) {
-        Context applicationContext;
-        if (context instanceof Activity) {
-            applicationContext = ((Activity) context).getApplicationContext();
-        } else {
-            applicationContext = ((Fragment) context).getActivity().getApplicationContext();
-        }
-        PaletteManagerRetriever paletteManagerRetriever =
-                new PaletteManagerRetriever(null);
-
-
-         tPalette = new TPalette(paletteManagerRetriever);
+        return getRetriever().get(fragment);
     }
 
     @NonNull
-    private static PaletteManagerRetriever getRetriever(@Nullable Context context) {
-        if (context == null){
-            throw new NullPointerException("context is null");
-        }
-        return TPalette.get(context).getPaletteManagerRetriever();
+    private static PaletteManagerRetriever getRetriever() {
+        // 初始化TPalette的地方，同时会创建一个PaletteManagerRetriever对象
+        return TPalette.get().getPaletteManagerRetriever();
     }
 
     @NonNull
@@ -115,21 +97,36 @@ public class TPalette {
         return paletteManagerRetriever;
     }
 
+
     void registerPaletteManager(PaletteManager paletteManager) {
         synchronized (managers) {
             if (managers.contains(paletteManager)) {
-                throw new IllegalStateException("Cannot register already registered manager");
+                Log.e(TAG, "Cannot register already registered manager");
+                return;
             }
             managers.add(paletteManager);
         }
     }
 
-    public void unregisterPaletteManager(PaletteManager paletteManager) {
+    void unregisterPaletteManager(PaletteManager paletteManager) {
         synchronized (managers) {
             if (!managers.contains(paletteManager)) {
-                throw new IllegalStateException("Cannot unregister not yet registered manager");
+                Log.e(TAG, "Cannot unregister not yet registered manager");
+                return;
             }
             managers.remove(paletteManager);
         }
+    }
+
+    boolean removeFromManagers(PaletteTask task) {
+        synchronized (managers) {
+            for (PaletteManager paletteManager : managers) {
+                if (paletteManager.unTrack(task)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

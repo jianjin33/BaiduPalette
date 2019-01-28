@@ -1,16 +1,13 @@
 package com.baidu.tpalette;
 
-import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.annotation.Nullable;
 import android.support.v7.graphics.Palette;
 import android.util.Log;
 import android.view.View;
-
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.FutureTarget;
@@ -19,78 +16,75 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static android.content.ContentValues.TAG;
 import static com.baidu.tpalette.PaletteOptions.PALETTE_DEFAULT_RESIZE_BITMAP_AREA;
-import static java.lang.Thread.sleep;
+
 
 public class PaletteTask {
-    private Context context;
+    private String TAG = PaletteTask.class.getSimpleName();
     private Object object;
-    private View target;
-    private PaletteCallback paletteCallback;
+    private View mTargetView;
+    private PaletteCallback mPaletteCallback;
+    private Palette mPalette;
+    private AsyncTask asyncTask;
+    private static Handler sHandler = new Handler(Looper.getMainLooper());
 
 
-    public PaletteTask(Context context, Object object, View target, PaletteCallback paletteCallback) {
-        this.context = context;
+    public PaletteTask(Object object, View target, PaletteCallback paletteCallback) {
         this.object = object;
-        this.target = target;
-        this.paletteCallback = paletteCallback;
+        this.mTargetView = target;
+        this.mPaletteCallback = paletteCallback;
     }
 
     public void start() {
-        palette(context, object);
+        if (object == null) {
+            new IllegalArgumentException("取色对象不能为空");
+            return;
+        }
+        palette(object);
     }
 
     public void recycle() {
-        paletteCallback = null;
-        target = null;
+        if (asyncTask != null) {
+            asyncTask.cancel(false);
+        }
+        asyncTask = null;
+        mPaletteCallback = null;
+        mTargetView = null;
     }
 
-    private void palette(final Context context, final Object obj) {
-        new AsyncTask<Bitmap, Void, Palette>() {
-            @Nullable
+    private void palette(final Object obj) {
+        asyncTask = new AsyncTask<Bitmap, Void, Palette>() {
+            @Override
             protected Palette doInBackground(Bitmap... params) {
-
-                try {
-                    sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-
-                final Integer color = ColorCache.hitPaletteCache(obj.toString());
+                final Integer color = PaletteColorCache.hitPaletteCache(obj.toString());
                 if (color != null) {
-                    // 字体颜色无需求，暂时返回白色
-                    //UiThreadHandler.post(() -> paletteCallback.setColor(color, Color.WHITE));
-                    if (target != null) {
-                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    if (mTargetView != null) {
+                        sHandler.post(new Runnable() {
                             @Override
                             public void run() {
-                                target.setBackgroundColor(color);
+                                mTargetView.setBackgroundColor(color);
                             }
                         });
+                    }
 
+                    if (mPaletteCallback != null) {
+                        // 字体颜色无需求，暂时返回白色
+                        sHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                mPaletteCallback.setColor(color, Color.WHITE);
+                            }
+                        });
                     }
-                    if (paletteCallback != null) {
-                        paletteCallback.setColor(color, Color.WHITE);
-                    }
+
+                    TPalette.get().removeFromManagers(PaletteTask.this);
                     return null;
                 }
 
 
                 Bitmap bitmap = null;
                 if (obj instanceof String) {
-                    FutureTarget<Bitmap> futureTarget = Glide.with(context).asBitmap().load(obj.toString()).submit();
-                    try {
-                        //超时时间10s
-                        bitmap = futureTarget.get(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    } catch (ExecutionException e) {
-                        e.printStackTrace();
-                    } catch (TimeoutException e) {
-                        e.printStackTrace();
-                    }
-                    //bitmap = ImageLoaderOption.getInstance().submit(context, obj.toString(), null);
+                    // todo 下载方式暂未提供 自定义较好
                 } else if (obj instanceof Bitmap) {
                     bitmap = (Bitmap) obj;
                 } else {
@@ -98,6 +92,7 @@ public class PaletteTask {
                 }
 
                 if (bitmap == null) {
+                    TPalette.get().removeFromManagers(PaletteTask.this);
                     return null;
                 }
 
@@ -108,26 +103,27 @@ public class PaletteTask {
                         .clearTargets();
 
                 try {
-                    sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+                    mPalette = builder.generate();
+                    if (!bitmap.isRecycled()) {
+                        bitmap.recycle();
+                    }
 
-                try {
-                    return builder.generate();
                 } catch (Exception e) {
                     Log.e(TAG, "Exception thrown during async generate", e);
-                    return null;
                 }
+                TPalette.get().removeFromManagers(PaletteTask.this);
+                return mPalette;
             }
 
-            protected void onPostExecute(@Nullable final Palette colorExtractor) {
+            @Override
+            protected void onPostExecute(final Palette colorExtractor) {
+                super.onPostExecute(colorExtractor);
                 if (colorExtractor != null) {
                     // todo 主线程
                     new Handler(Looper.getMainLooper()).post(new Runnable() {
                         @Override
                         public void run() {
-                            asyncCallback(colorExtractor, paletteCallback, obj.toString());
+                            asyncCallback(colorExtractor, mPaletteCallback, obj.toString());
                         }
                     });
 
@@ -146,8 +142,8 @@ public class PaletteTask {
      */
     private void asyncCallback(Palette palette, PaletteCallback paletteCallback, String cacheKey) {
         if (palette == null) {
-            if (target != null) {
-                target.setBackgroundColor(getColorWithAlpha(Color.WHITE));
+            if (mTargetView != null) {
+                mTargetView.setBackgroundColor(getColorWithAlpha(Color.WHITE));
             }
             if (paletteCallback != null) {
                 // 取不到色值时，默认返回白色+20%透明度蒙版
@@ -159,8 +155,8 @@ public class PaletteTask {
         Palette.Swatch dominantSwatch = palette.getDominantSwatch();
 
         if (dominantSwatch == null) {
-            if (target != null) {
-                target.setBackgroundColor(getColorWithAlpha(Color.WHITE));
+            if (mTargetView != null) {
+                mTargetView.setBackgroundColor(getColorWithAlpha(Color.WHITE));
             }
             if (paletteCallback != null) {
                 // 取不到色值时，默认返回白色+20%透明度蒙版
@@ -171,15 +167,15 @@ public class PaletteTask {
 
         // 覆盖一层20%透明度的蒙板
         int alphaColor = getColorWithAlpha(dominantSwatch.getRgb());
-        if (target != null) {
-            target.setBackgroundColor(alphaColor);
+        if (mTargetView != null) {
+            mTargetView.setBackgroundColor(alphaColor);
         }
 
         if (paletteCallback != null) {
             paletteCallback.setColor(alphaColor, dominantSwatch.getBodyTextColor());
         }
         if (cacheKey != null) {
-            ColorCache.putPaletteCache(cacheKey, alphaColor);
+            PaletteColorCache.putPaletteCache(cacheKey, alphaColor);
         }
     }
 

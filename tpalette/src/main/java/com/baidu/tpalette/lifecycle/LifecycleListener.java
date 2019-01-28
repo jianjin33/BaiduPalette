@@ -1,21 +1,26 @@
 package com.baidu.tpalette.lifecycle;
 
+/**
+ * @author JianZuming
+ * @description 通过Fragment或Activity的生命周期来控制取色异步任务生命周期。
+ * @date 2019/1/17
+ */
 public interface LifecycleListener {
     /**
-     * {@link android.app.Fragment#onStart()}}
-     * or {@link android.app.Activity#onStart()} is called.
+     * 对应{@link android.app.Fragment#onStart()}
+     * {@link android.app.Activity#onStart()}
      */
     void onStart();
 
     /**
-     * {@link android.app.Fragment#onStop()}}
-     * or {@link android.app.Activity#onStop()}} is called.
+     * 对应{@link android.app.Fragment#onStop()}
+     * {@link android.app.Activity#onStop()}}
      */
     void onStop();
 
     /**
-     * {@link android.app.Fragment#onDestroy()}}
-     * or {@link android.app.Activity#onDestroy()} is called.
+     * 对应{@link android.app.Fragment#onDestroy()}
+     * {@link android.app.Activity#onDestroy()}
      */
     void onDestroy();
 }

@@ -7,8 +7,6 @@ import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.os.Build;
-import android.os.Build.VERSION;
-import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -26,22 +24,20 @@ import android.view.View;
 
 import com.baidu.tpalette.PaletteManager;
 import com.baidu.tpalette.TPalette;
-import com.baidu.tpalette.Util;
+import com.baidu.tpalette.Utils;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * @author JianZuming
+ * @description 控制PaletteManager的初始化
+ * @date 2019/1/21
+ */
 public class PaletteManagerRetriever implements Handler.Callback {
-    @VisibleForTesting
-    static final String FRAGMENT_TAG = "com.bumptech.glide.manager";
+    static final String FRAGMENT_TAG = "com.baidu.music.common.palette.lifecycle";
     private static final String TAG = "RMRetriever";
-
-    private static final int ID_REMOVE_FRAGMENT_MANAGER = 1;
-    private static final int ID_REMOVE_SUPPORT_FRAGMENT_MANAGER = 2;
-
-    // Hacks based on the implementation of FragmentManagerImpl in the non-support libraries that
-    // allow us to iterate over and retrieve all active Fragments in a FragmentManager.
     private static final String FRAGMENT_INDEX_KEY = "key";
 
     /**
@@ -49,49 +45,39 @@ public class PaletteManagerRetriever implements Handler.Callback {
      */
     private volatile PaletteManager applicationManager;
 
-    /**
-     * Pending adds for RequestManagerFragments.
-     */
+    private static final int ID_REMOVE_FRAGMENT_MANAGER = 1;
+    private static final int ID_REMOVE_SUPPORT_FRAGMENT_MANAGER = 2;
+
     @VisibleForTesting
     final Map<android.app.FragmentManager, PaletteManagerFragment> pendingRequestManagerFragments =
             new HashMap<>();
 
-    /**
-     * Pending adds for SupportRequestManagerFragments.
-     */
     @VisibleForTesting
     final Map<FragmentManager, SupportPaletteManagerFragment> pendingSupportRequestManagerFragments =
             new HashMap<>();
 
-    /**
-     * Main thread handler to handle cleaning up pending fragment maps.
-     */
+    // 用于在主线程清理Map中的待定的Fragment
     private final Handler handler;
-    private final RequestManagerFactory factory;
+    private final PaletteManagerFactory factory;
 
-    // Objects used to find Fragments and Activities containing views.
+    // 用于记录当前Fragments或Activities包含的views.
     private final ArrayMap<View, Fragment> tempViewToSupportFragment = new ArrayMap<>();
     private final ArrayMap<View, android.app.Fragment> tempViewToFragment = new ArrayMap<>();
     private final Bundle tempBundle = new Bundle();
 
-    public PaletteManagerRetriever(@Nullable RequestManagerFactory factory) {
-        this.factory = factory != null ? factory : DEFAULT_FACTORY;
+    public PaletteManagerRetriever(@Nullable PaletteManagerFactory factory) {
         handler = new Handler(Looper.getMainLooper(), this /* Callback */);
+        this.factory = factory != null ? factory : DEFAULT_FACTORY;
     }
 
-    @NonNull
-    private PaletteManager getApplicationManager(@NonNull Context context) {
+    private PaletteManager getApplicationManager() {
         // Either an application context or we're on a background thread.
         if (applicationManager == null) {
             synchronized (this) {
                 if (applicationManager == null) {
-                    TPalette tPalette = TPalette.get(context.getApplicationContext());
+                    TPalette tPalette = TPalette.get();
                     applicationManager =
-                            factory.build(
-                                    tPalette,
-                                    new ApplicationLifecycle(),
-                                    new EmptyRequestManagerTreeNode(),
-                                    context.getApplicationContext());
+                            factory.build(tPalette, new ApplicationLifecycle());
                 }
             }
         }
@@ -99,11 +85,10 @@ public class PaletteManagerRetriever implements Handler.Callback {
         return applicationManager;
     }
 
-    @NonNull
     public PaletteManager get(@NonNull Context context) {
         if (context == null) {
             throw new IllegalArgumentException("You cannot start a load on a null Context");
-        } else if (Util.isOnMainThread() && !(context instanceof Application)) {
+        } else if (Utils.isOnMainThread() && !(context instanceof Application)) {
             if (context instanceof FragmentActivity) {
                 return get((FragmentActivity) context);
             } else if (context instanceof Activity) {
@@ -113,49 +98,47 @@ public class PaletteManagerRetriever implements Handler.Callback {
             }
         }
 
-        return getApplicationManager(context);
+        return getApplicationManager();
     }
 
-    @NonNull
     public PaletteManager get(@NonNull FragmentActivity activity) {
-        if (Util.isOnBackgroundThread()) {
+        if (Utils.isOnBackgroundThread()) {
             // 如果在子线程中，则认为生命周期为Application
             return get(activity.getApplicationContext());
         } else {
             assertNotDestroyed(activity);
             FragmentManager fm = activity.getSupportFragmentManager();
-            return supportFragmentGet(activity, fm, null /*parentHint*/);
+            // 获取fragment对象，并返回RequestManager对象
+            return supportFragmentGet(fm, null /*parentHint*/);
         }
     }
 
     @SuppressLint("RestrictedApi")
-    @NonNull
     public PaletteManager get(@NonNull Fragment fragment) {
         Preconditions.checkNotNull(fragment.getActivity(),
                 "You cannot start a load on a fragment before it is attached or after it is destroyed");
-        if (Util.isOnBackgroundThread()) {
+        if (Utils.isOnBackgroundThread()) {
             return get(fragment.getActivity().getApplicationContext());
         } else {
             FragmentManager fm = fragment.getChildFragmentManager();
-            return supportFragmentGet(fragment.getActivity(), fm, fragment);
+            return supportFragmentGet(fm, fragment);
         }
     }
 
-    @NonNull
     public PaletteManager get(@NonNull Activity activity) {
-        if (Util.isOnBackgroundThread()) {
+        if (Utils.isOnBackgroundThread()) { // 子线程中则不管理生命周期，使用整个应用的生命周期
             return get(activity.getApplicationContext());
         } else {
             assertNotDestroyed(activity);
             android.app.FragmentManager fm = activity.getFragmentManager();
-            return fragmentGet(activity, fm, null);
+            return fragmentGet(fm, null);
         }
     }
 
     @SuppressLint("RestrictedApi")
     @NonNull
     public PaletteManager get(@NonNull View view) {
-        if (Util.isOnBackgroundThread()) {
+        if (Utils.isOnBackgroundThread()) {
             return get(view.getContext().getApplicationContext());
         }
 
@@ -185,6 +168,7 @@ public class PaletteManagerRetriever implements Handler.Callback {
         return get(fragment);
     }
 
+
     private static void findAllSupportFragmentsWithViews(
             @Nullable Collection<Fragment> topLevelFragments,
             @NonNull Map<View, Fragment> result) {
@@ -201,8 +185,7 @@ public class PaletteManagerRetriever implements Handler.Callback {
         }
     }
 
-    @Nullable
-    private Fragment findSupportFragment(@NonNull View target, @NonNull FragmentActivity activity) {
+    private Fragment findSupportFragment(View target, FragmentActivity activity) {
         tempViewToSupportFragment.clear();
         findAllSupportFragmentsWithViews(
                 activity.getSupportFragmentManager().getFragments(), tempViewToSupportFragment);
@@ -225,8 +208,7 @@ public class PaletteManagerRetriever implements Handler.Callback {
         return result;
     }
 
-    @Nullable
-    private android.app.Fragment findFragment(@NonNull View target, @NonNull Activity activity) {
+    private android.app.Fragment findFragment(View target, Activity activity) {
         tempViewToFragment.clear();
         findAllFragmentsWithViews(activity.getFragmentManager(), tempViewToFragment);
 
@@ -249,7 +231,6 @@ public class PaletteManagerRetriever implements Handler.Callback {
         return result;
     }
 
-    // TODO: Consider using an accessor class in the support library package to more directly retrieve
     // non-support Fragments.
     @TargetApi(Build.VERSION_CODES.O)
     private void findAllFragmentsWithViews(
@@ -284,7 +265,7 @@ public class PaletteManagerRetriever implements Handler.Callback {
             }
             if (fragment.getView() != null) {
                 result.put(fragment.getView(), fragment);
-                if (VERSION.SDK_INT >= VERSION_CODES.JELLY_BEAN_MR1) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
                     findAllFragmentsWithViews(fragment.getChildFragmentManager(), result);
                 }
             }
@@ -309,24 +290,21 @@ public class PaletteManagerRetriever implements Handler.Callback {
         }
     }
 
-    @NonNull
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
     public PaletteManager get(@NonNull android.app.Fragment fragment) {
         if (fragment.getActivity() == null) {
-            throw new IllegalArgumentException(
-                    "You cannot start a load on a fragment before it is attached");
+            throw new IllegalArgumentException("You cannot start a load on a fragment before it is attached");
         }
-        if (Util.isOnBackgroundThread() || Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+        if (Utils.isOnBackgroundThread() || Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
             return get(fragment.getActivity().getApplicationContext());
         } else {
             android.app.FragmentManager fm = fragment.getChildFragmentManager();
-            return fragmentGet(fragment.getActivity(), fm, fragment);
+            return fragmentGet(fm, fragment);
         }
     }
 
-    @NonNull
-    PaletteManagerFragment getRequestManagerFragment(
-            @NonNull final android.app.FragmentManager fm, @Nullable android.app.Fragment parentHint) {
+    PaletteManagerFragment getPaletteManagerFragment(@NonNull final android.app.FragmentManager fm,
+                                                     @Nullable android.app.Fragment parentHint) {
         // 尝试根据id去找到此前创建的RequestManagerFragment
         PaletteManagerFragment current = (PaletteManagerFragment) fm.findFragmentByTag(FRAGMENT_TAG);
         if (current == null) {
@@ -345,70 +323,76 @@ public class PaletteManagerRetriever implements Handler.Callback {
         return current;
     }
 
-    @NonNull
-    private PaletteManager fragmentGet(@NonNull Context context,
-                                       @NonNull android.app.FragmentManager fm,
+    private PaletteManager fragmentGet(@NonNull android.app.FragmentManager fm,
                                        @Nullable android.app.Fragment parentHint) {
         // PaletteManagerFragment，并获取绑定到这个fragment的PaletteManager
-        PaletteManagerFragment current = getRequestManagerFragment(fm, parentHint);
+        PaletteManagerFragment current = getPaletteManagerFragment(fm, parentHint);
+        PaletteManager paletteManager = current.getPaletteManager();
+        if (paletteManager == null) {
+            // 如果获取PaletteManagerFragment还没有绑定过RequestManager，那么就创建RequestManager并绑定到PaletteManagerFragment
+            TPalette tPalette = TPalette.get();
+            paletteManager = factory.build(tPalette, current.getPaletteLifecycle());
+            current.setPaletteManager(paletteManager);
+        }
+        return paletteManager;
+    }
+
+    private PaletteManager supportFragmentGet(@NonNull FragmentManager fm, @Nullable Fragment parentHint) {
+        SupportPaletteManagerFragment current = getSupportPaletteManagerFragment(fm, parentHint);
         PaletteManager requestManager = current.getPaletteManager();
         if (requestManager == null) {
-            // 如果获取PaletteManagerFragment还没有绑定过RequestManager，那么就创建RequestManager并绑定到PaletteManagerFragment
-            TPalette tPalette = TPalette.get(context);
+            TPalette tPalette = TPalette.get();
             requestManager =
-                    factory.build(
-                            tPalette, current.getPaletteLifecycle(), current.getRequestManagerTreeNode(), context);
+                    factory.build(tPalette, current.getPaletteLifecycle());
             current.setPaletteManager(requestManager);
         }
         return requestManager;
     }
 
-    @NonNull
+    /**
+     * 获取或者创建Fragment对象，避免重复创建Fragment
+     *
+     * @param fm
+     * @param parentHint
+     * @return
+     */
     SupportPaletteManagerFragment getSupportPaletteManagerFragment(
             @NonNull final FragmentManager fm, @Nullable Fragment parentHint) {
+        // 查找tag为FRAGMENT_TAG的fragment
         SupportPaletteManagerFragment current =
                 (SupportPaletteManagerFragment) fm.findFragmentByTag(FRAGMENT_TAG);
         if (current == null) {
+            // 没有则从HashMap中取出fm
             current = pendingSupportRequestManagerFragments.get(fm);
             if (current == null) {
+                // 再没有就创建一个
                 current = new SupportPaletteManagerFragment();
+                // 当fragment嵌套fragment时才会使用，否则parentHint是null
                 current.setParentFragmentHint(parentHint);
+                // 将fm添加到HashMap中，防止fragment的重复创建
                 pendingSupportRequestManagerFragments.put(fm, current);
+                // 添加fragment
                 fm.beginTransaction().add(current, FRAGMENT_TAG).commitAllowingStateLoss();
+                // 从HashMap移除fm
                 handler.obtainMessage(ID_REMOVE_SUPPORT_FRAGMENT_MANAGER, fm).sendToTarget();
             }
         }
         return current;
     }
 
-    @NonNull
-    private PaletteManager supportFragmentGet(@NonNull Context context, @NonNull FragmentManager fm,
-                                              @Nullable Fragment parentHint) {
-        SupportPaletteManagerFragment current = getSupportPaletteManagerFragment(fm, parentHint);
-        PaletteManager requestManager = current.getPaletteManager();
-        if (requestManager == null) {
-            TPalette tPalette = TPalette.get(context);
-            requestManager =
-                    factory.build(
-                            tPalette, current.getGlideLifecycle(), current.getRequestManagerTreeNode(), context);
-            current.setPaletteManager(requestManager);
-        }
-        return requestManager;
-    }
-
     @Override
-    public boolean handleMessage(Message message) {
+    public boolean handleMessage(Message msg) {
         boolean handled = true;
         Object removed = null;
         Object key = null;
-        switch (message.what) {
+        switch (msg.what) {
             case ID_REMOVE_FRAGMENT_MANAGER:
-                android.app.FragmentManager fm = (android.app.FragmentManager) message.obj;
+                android.app.FragmentManager fm = (android.app.FragmentManager) msg.obj;
                 key = fm;
                 removed = pendingRequestManagerFragments.remove(fm);
                 break;
             case ID_REMOVE_SUPPORT_FRAGMENT_MANAGER:
-                FragmentManager supportFm = (FragmentManager) message.obj;
+                FragmentManager supportFm = (FragmentManager) msg.obj;
                 key = supportFm;
                 removed = pendingSupportRequestManagerFragments.remove(supportFm);
                 break;
@@ -422,21 +406,16 @@ public class PaletteManagerRetriever implements Handler.Callback {
         return handled;
     }
 
-    public interface RequestManagerFactory {
-        @NonNull
-        PaletteManager build(
-                @NonNull TPalette tPalette,
-                @NonNull Lifecycle lifecycle,
-                @NonNull PaletteManagerTreeNode requestManagerTreeNode,
-                @NonNull Context context);
+    public interface PaletteManagerFactory {
+        PaletteManager build(@NonNull TPalette tPalette, @NonNull Lifecycle lifecycle);
     }
 
-    private static final RequestManagerFactory DEFAULT_FACTORY = new RequestManagerFactory() {
+    private static final PaletteManagerFactory DEFAULT_FACTORY = new PaletteManagerFactory() {
         @NonNull
         @Override
-        public PaletteManager build(@NonNull TPalette tPalette, @NonNull Lifecycle lifecycle,
-                                    @NonNull PaletteManagerTreeNode requestManagerTreeNode, @NonNull Context context) {
-            return new PaletteManager(tPalette, lifecycle, requestManagerTreeNode, context);
+        public PaletteManager build(@NonNull TPalette tPalette, @NonNull Lifecycle lifecycle) {
+            return new PaletteManager(tPalette, lifecycle);
         }
     };
+
 }
